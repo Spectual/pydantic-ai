@@ -18,6 +18,7 @@ with try_import() as imports_successful:
     from pydantic_evals.online import (
         OnlineEvalConfig,
         OnlineEvaluator,
+        SpanReference,
         configure,
         disable_evaluation,
         wait_for_evaluations,
@@ -339,3 +340,67 @@ async def test_default_config_fallback():
         assert len(collector.calls) == 1
     finally:
         configure(default_sink=None)
+
+
+def test_serialization_name_is_none():
+    """OnlineEvaluation opts out of spec serialization."""
+    assert OnlineEvaluation.get_serialization_name() is None
+
+
+@pytest.mark.anyio
+async def test_span_reference_with_logfire(capfire: Any):
+    """OnlineEvaluation produces a valid SpanReference when logfire is configured."""
+    span_refs: list[SpanReference | None] = []
+
+    class SpanCaptureSink:
+        async def submit(
+            self,
+            *,
+            results: Sequence[EvaluationResult[Any]],
+            failures: Sequence[EvaluatorFailure],
+            context: EvaluatorContext[Any, Any, Any],
+            span_reference: SpanReference | None,
+        ) -> None:
+            span_refs.append(span_reference)
+
+    config = OnlineEvalConfig(default_sink=SpanCaptureSink())
+
+    agent = Agent(
+        TestModel(),
+        capabilities=[OnlineEvaluation(evaluators=[AlwaysTrue()], config=config)],
+        instrument=True,
+    )
+
+    await agent.run('hello')
+    await wait_for_evaluations()
+
+    assert len(span_refs) == 1
+    ref = span_refs[0]
+    assert ref is not None
+    assert isinstance(ref, SpanReference)
+    assert len(ref.trace_id) == 32
+    assert len(ref.span_id) == 16
+
+
+@pytest.mark.anyio
+async def test_tool_call_metrics():
+    """Token usage metrics include tool_calls when agent uses tools."""
+    collector = Collector()
+    config = OnlineEvalConfig(default_sink=collector)
+
+    agent = Agent(
+        TestModel(),
+        capabilities=[OnlineEvaluation(evaluators=[AlwaysTrue()], config=config)],
+    )
+
+    @agent.tool_plain
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    await agent.run('use the add tool to add 1 and 2')
+    await wait_for_evaluations()
+
+    assert len(collector.calls) == 1
+    _, _, ctx = collector.calls[0]
+    assert 'requests' in ctx.metrics
+    assert ctx.metrics.get('tool_calls', 0) > 0
