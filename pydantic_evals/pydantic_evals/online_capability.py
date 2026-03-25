@@ -65,25 +65,40 @@ class OnlineEvaluation(AbstractCapability[AgentDepsT]):
     stream completes.
 
     Example:
-    ```python {test="skip" lint="skip"}
+    ```python
+    from dataclasses import dataclass
+
     from pydantic_ai import Agent
     from pydantic_evals.evaluators import Evaluator, EvaluatorContext
-    from pydantic_evals.online import CallbackSink, OnlineEvalConfig
+    from pydantic_evals.online import OnlineEvalConfig, wait_for_evaluations
     from pydantic_evals.online_capability import OnlineEvaluation
 
+
+    @dataclass
     class IsHelpful(Evaluator):
         def evaluate(self, ctx: EvaluatorContext) -> bool:
             return len(str(ctx.output)) > 10
 
-    agent = Agent(
-        'test',
-        capabilities=[
-            OnlineEvaluation(
-                evaluators=[IsHelpful()],
-                config=OnlineEvalConfig(default_sink=CallbackSink(lambda r, f, c: print(r))),
-            ),
-        ],
-    )
+
+    async def main():
+        results_log: list[str] = []
+        agent = Agent(
+            'test',
+            capabilities=[
+                OnlineEvaluation(
+                    evaluators=[IsHelpful()],
+                    config=OnlineEvalConfig(
+                        default_sink=lambda results, failures, ctx: results_log.extend(
+                            f'{r.name}={r.value}' for r in results
+                        ),
+                    ),
+                ),
+            ],
+        )
+        await agent.run('hello')
+        await wait_for_evaluations()
+        print(results_log)
+        #> ['IsHelpful=True']
     ```
     """
 
