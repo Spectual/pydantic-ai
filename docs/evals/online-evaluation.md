@@ -845,7 +845,7 @@ After each `agent.run()` call, the capability:
 The capability supports all the same features as the `@evaluate()` decorator: sampling, gating, per-evaluator sinks, concurrency control, and error handling. The `config` parameter is optional and defaults to the global [`DEFAULT_CONFIG`][pydantic_evals.online.DEFAULT_CONFIG].
 
 !!! note
-    `OnlineEvaluation` wraps `agent.run()` only. Streaming via `agent.run_stream()` is not currently supported because the final result is not available until the stream completes.
+    [`OnlineEvaluation`][pydantic_evals.online_capability.OnlineEvaluation] wraps [`agent.run()`][pydantic_ai.Agent.run] only. Streaming via [`agent.run_stream()`][pydantic_ai.Agent.run_stream] is not currently supported because the final result is not available until the stream completes.
 
 ## API Reference
 
