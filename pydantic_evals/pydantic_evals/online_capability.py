@@ -18,15 +18,15 @@ from pydantic_ai.tools import AgentDepsT, RunContext
 from .evaluators.context import EvaluatorContext
 from .evaluators.evaluator import Evaluator
 from .online import (
-    _EVALUATION_DISABLED as _EVALUATION_DISABLED,  # pyright: ignore[reportPrivateUsage]
     DEFAULT_CONFIG,
+    EVALUATION_DISABLED,
     OnlineEvalConfig,
     OnlineEvaluator,
     SpanReference,
-    _dispatch_async as _dispatch_async,  # pyright: ignore[reportPrivateUsage]
-    _dispatch_evaluators as _dispatch_evaluators,  # pyright: ignore[reportPrivateUsage]
-    _resolve_sample_rate_field as _resolve_sample_rate_field,  # pyright: ignore[reportPrivateUsage]
-    _should_evaluate as _should_evaluate,  # pyright: ignore[reportPrivateUsage]
+    dispatch_async,
+    dispatch_evaluators,
+    resolve_sample_rate_field,
+    should_evaluate,
 )
 from .otel._context_subtree import context_subtree
 
@@ -112,13 +112,13 @@ class OnlineEvaluation(AbstractCapability[AgentDepsT]):
     ) -> AgentRunResult[Any]:
         config = self._resolved_config
 
-        if not config.enabled or _EVALUATION_DISABLED.get():
+        if not config.enabled or EVALUATION_DISABLED.get():
             return await handler()
 
         sampled = [
             oe
             for oe in self._online_evaluators
-            if _should_evaluate(_resolve_sample_rate_field(oe, config), config.enabled)
+            if should_evaluate(resolve_sample_rate_field(oe, config), config.enabled)
         ]
         if not sampled:
             return await handler()
@@ -157,6 +157,6 @@ class OnlineEvaluation(AbstractCapability[AgentDepsT]):
 
         span_reference = _parse_traceparent(result._traceparent(required=False))  # pyright: ignore[reportPrivateUsage]
 
-        _dispatch_async(_dispatch_evaluators(sampled, context, span_reference, config))
+        dispatch_async(dispatch_evaluators(sampled, context, span_reference, config))
 
         return result

@@ -99,7 +99,7 @@ def _remove_background_task(task: asyncio.Task[Any]) -> None:
         _background_tasks.discard(task)
 
 
-def _dispatch_async(coro: Coroutine[Any, Any, None]) -> None:
+def dispatch_async(coro: Coroutine[Any, Any, None]) -> None:
     """Dispatch an evaluation coroutine on the caller's event loop.
 
     Uses sniffio to detect the backend and dispatches accordingly:
@@ -169,7 +169,7 @@ def _dispatch_in_background_thread(coro: Coroutine[Any, Any, None]) -> None:
             _background_threads.discard(thread)
 
 
-_EVALUATION_DISABLED: ContextVar[bool] = ContextVar('_evaluation_disabled', default=False)
+EVALUATION_DISABLED: ContextVar[bool] = ContextVar('_evaluation_disabled', default=False)
 
 
 @contextmanager
@@ -178,11 +178,11 @@ def disable_evaluation() -> Iterator[None]:
 
     When active, decorated functions still execute normally but no evaluators are dispatched.
     """
-    token = _EVALUATION_DISABLED.set(True)
+    token = EVALUATION_DISABLED.set(True)
     try:
         yield
     finally:
-        _EVALUATION_DISABLED.reset(token)
+        EVALUATION_DISABLED.reset(token)
 
 
 @dataclass(kw_only=True)
@@ -382,7 +382,7 @@ async def run_evaluators(
     return all_results, all_failures
 
 
-def _resolve_sample_rate_field(
+def resolve_sample_rate_field(
     online_eval: OnlineEvaluator,
     config: OnlineEvalConfig,
 ) -> float | Callable[[], float | bool]:
@@ -399,11 +399,11 @@ def _resolve_sample_rate(rate: float | Callable[[], float | bool]) -> float | bo
     return rate
 
 
-def _should_evaluate(rate: float | Callable[[], float | bool], global_enabled: bool) -> bool:
+def should_evaluate(rate: float | Callable[[], float | bool], global_enabled: bool) -> bool:
     """Determine whether an evaluator should run based on sampling configuration."""
     if not global_enabled:  # pragma: no cover
         return False
-    if _EVALUATION_DISABLED.get():  # pragma: no cover
+    if EVALUATION_DISABLED.get():  # pragma: no cover
         return False
 
     try:
@@ -541,7 +541,7 @@ async def _dispatch_single_evaluator(
         online_eval.semaphore.release()
 
 
-async def _dispatch_evaluators(
+async def dispatch_evaluators(
     online_evaluators: list[OnlineEvaluator],
     context: EvaluatorContext,
     span_reference: SpanReference | None,
@@ -654,13 +654,11 @@ def _wrap_async(
     @functools.wraps(func)
     async def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         # If evaluation is globally disabled, just run the function
-        if not config.enabled or _EVALUATION_DISABLED.get():
+        if not config.enabled or EVALUATION_DISABLED.get():
             return await func(*args, **kwargs)
 
         # Determine which evaluators are sampled (before running the function)
-        sampled = [
-            oe for oe in online_evals if _should_evaluate(_resolve_sample_rate_field(oe, config), config.enabled)
-        ]
+        sampled = [oe for oe in online_evals if should_evaluate(resolve_sample_rate_field(oe, config), config.enabled)]
         if not sampled:
             return await func(*args, **kwargs)
 
@@ -690,7 +688,7 @@ def _wrap_async(
         span_reference = _extract_span_reference(span)
 
         # Dispatch evaluators on the caller's event loop — preserves ContextVars
-        _dispatch_async(_dispatch_evaluators(sampled, context, span_reference, config))
+        dispatch_async(dispatch_evaluators(sampled, context, span_reference, config))
 
         return result
 
@@ -708,13 +706,11 @@ def _wrap_sync(
     @functools.wraps(func)
     def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
         # If evaluation is globally disabled, just run the function
-        if not config.enabled or _EVALUATION_DISABLED.get():
+        if not config.enabled or EVALUATION_DISABLED.get():
             return func(*args, **kwargs)
 
         # Determine which evaluators are sampled
-        sampled = [
-            oe for oe in online_evals if _should_evaluate(_resolve_sample_rate_field(oe, config), config.enabled)
-        ]
+        sampled = [oe for oe in online_evals if should_evaluate(resolve_sample_rate_field(oe, config), config.enabled)]
         if not sampled:
             return func(*args, **kwargs)
 
@@ -751,9 +747,9 @@ def _wrap_sync(
         except RuntimeError:
             has_running_loop = False
 
-        coro = _dispatch_evaluators(sampled, context, span_reference, config)
+        coro = dispatch_evaluators(sampled, context, span_reference, config)
         if has_running_loop:
-            _dispatch_async(coro)
+            dispatch_async(coro)
         else:
             _dispatch_in_background_thread(coro)
 
