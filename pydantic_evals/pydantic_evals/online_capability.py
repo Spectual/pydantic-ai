@@ -36,7 +36,7 @@ __all__ = ('OnlineEvaluation',)
 def _parse_traceparent(traceparent: str | None) -> SpanReference | None:
     """Parse a W3C traceparent string into a SpanReference.
 
-    Format: ``00-{trace_id}-{span_id}-{flags}``
+    Format: `00-{trace_id}-{span_id}-{flags}`
     Returns None if the string is missing, malformed, or has zero IDs.
     """
     if traceparent is None:
@@ -56,11 +56,11 @@ def _parse_traceparent(traceparent: str | None) -> SpanReference | None:
 class OnlineEvaluation(AbstractCapability[AgentDepsT]):
     """Capability that runs online evaluators on agent run results.
 
-    Dispatches evaluators asynchronously in the background after each ``agent.run()``
+    Dispatches evaluators asynchronously in the background after each `agent.run()`
     completes. Non-blocking - the agent run returns immediately and evaluators run
     concurrently.
 
-    Note: only ``agent.run()`` is supported. Streaming via ``agent.run_stream()``
+    Note: only `agent.run()` is supported. Streaming via `agent.run_stream()`
     does not trigger evaluators since the final result is not available until the
     stream completes.
 
@@ -91,10 +91,10 @@ class OnlineEvaluation(AbstractCapability[AgentDepsT]):
     """Evaluators to run after each agent run."""
 
     config: OnlineEvalConfig | None = None
-    """Optional config override. Defaults to the global ``DEFAULT_CONFIG``."""
+    """Optional config override. Defaults to the global `DEFAULT_CONFIG`."""
 
     name: str | None = None
-    """Optional name for the EvaluatorContext. Defaults to the agent run's ``run_id``."""
+    """Optional name for the EvaluatorContext. Defaults to the agent run's `run_id`."""
 
     _online_evaluators: list[OnlineEvaluator] = field(init=False, repr=False)
     _resolved_config: OnlineEvalConfig = field(init=False, repr=False)
