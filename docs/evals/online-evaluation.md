@@ -785,26 +785,54 @@ Key behaviors:
 - **If `on_error` itself raises**, the exception is silently suppressed to protect sibling evaluators.
 - **If no `on_error` is set**, exceptions are silently suppressed — this is the safe default.
 
-## API Reference
-
 ## Agent Integration
 
 The [`OnlineEvaluation`][pydantic_evals.online_capability.OnlineEvaluation] capability brings online evaluation to Pydantic AI agents. Instead of decorating a function, you add the capability to your agent:
 
-```python {test="skip"}
+```python
+import asyncio
+from dataclasses import dataclass
+
 from pydantic_ai import Agent
-from pydantic_evals.online import OnlineEvalConfig, OnlineEvaluator
+from pydantic_evals.evaluators import Evaluator, EvaluatorContext
+from pydantic_evals.online import OnlineEvalConfig, wait_for_evaluations
 from pydantic_evals.online_capability import OnlineEvaluation
 
+results_log: list[str] = []
+
+
+@dataclass
+class OutputNotEmpty(Evaluator):
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        return bool(ctx.output)
+
+
 agent = Agent(
-    'openai:gpt-4o',
+    'test',
     capabilities=[
         OnlineEvaluation(
-            evaluators=[IsHelpful(), IsFactual()],
-            config=OnlineEvalConfig(default_sink=my_sink),
+            evaluators=[OutputNotEmpty()],
+            config=OnlineEvalConfig(
+                default_sink=lambda results, failures, ctx: results_log.extend(
+                    f'{r.name}={r.value}' for r in results
+                ),
+            ),
         ),
     ],
 )
+
+
+async def main():
+    result = await agent.run('hello')
+    print(result.output)
+    #> success (no tool calls)
+
+    await wait_for_evaluations()
+    print(results_log)
+    #> ['OutputNotEmpty=True']
+
+
+asyncio.run(main())
 ```
 
 After each `agent.run()` call, the capability:
@@ -815,6 +843,9 @@ After each `agent.run()` call, the capability:
 4. Returns the run result immediately without blocking
 
 The capability supports all the same features as the `@evaluate()` decorator: sampling, gating, per-evaluator sinks, concurrency control, and error handling. The `config` parameter is optional and defaults to the global [`DEFAULT_CONFIG`][pydantic_evals.online.DEFAULT_CONFIG].
+
+!!! note
+    `OnlineEvaluation` wraps `agent.run()` only. Streaming via `agent.run_stream()` is not currently supported because the final result is not available until the stream completes.
 
 ## API Reference
 

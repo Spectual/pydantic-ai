@@ -18,14 +18,11 @@ with try_import() as imports_successful:
     from pydantic_evals.online import (
         OnlineEvalConfig,
         OnlineEvaluator,
-        SpanReference,
+        configure,
         disable_evaluation,
         wait_for_evaluations,
     )
-    from pydantic_evals.online_capability import (
-        OnlineEvaluation,
-        _parse_traceparent as _parse_traceparent,  # pyright: ignore[reportPrivateUsage]
-    )
+    from pydantic_evals.online_capability import OnlineEvaluation
 
 pytestmark = pytest.mark.skipif(not imports_successful(), reason='pydantic-evals not installed')
 
@@ -62,20 +59,6 @@ if TYPE_CHECKING or imports_successful():
             context: EvaluatorContext[Any, Any, Any],
         ) -> None:
             self.calls.append((list(results), list(failures), context))
-
-    class SpanCaptureSink:
-        def __init__(self) -> None:
-            self.submissions: list[tuple[list[EvaluationResult[Any]], SpanReference | None]] = []
-
-        async def submit(
-            self,
-            *,
-            results: Sequence[EvaluationResult[Any]],
-            failures: Sequence[EvaluatorFailure],
-            context: EvaluatorContext[Any, Any, Any],
-            span_reference: SpanReference | None,
-        ) -> None:
-            self.submissions.append((list(results), span_reference))
 
 
 @pytest.mark.anyio
@@ -338,40 +321,10 @@ async def test_name_defaults_to_run_id():
     assert len(ctx.name) > 0
 
 
-def test_parse_traceparent_valid():
-    """_parse_traceparent parses a valid W3C traceparent string."""
-    tp = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
-    ref = _parse_traceparent(tp)
-    assert ref is not None
-    assert ref.trace_id == '0af7651916cd43dd8448eb211c80319c'
-    assert ref.span_id == 'b7ad6b7169203331'
-
-
-def test_parse_traceparent_none():
-    assert _parse_traceparent(None) is None
-
-
-def test_parse_traceparent_malformed():
-    assert _parse_traceparent('not-a-traceparent') is None
-
-
-def test_parse_traceparent_zero_trace_id():
-    tp = '00-00000000000000000000000000000000-b7ad6b7169203331-01'
-    assert _parse_traceparent(tp) is None
-
-
-def test_parse_traceparent_zero_span_id():
-    tp = '00-0af7651916cd43dd8448eb211c80319c-0000000000000000-01'
-    assert _parse_traceparent(tp) is None
-
-
 @pytest.mark.anyio
 async def test_default_config_fallback():
     """OnlineEvaluation uses DEFAULT_CONFIG when no config is provided."""
     collector = Collector()
-
-    # Create a config that we'll set as defaults - but we won't pass it to OnlineEvaluation
-    from pydantic_evals.online import configure
 
     configure(default_sink=collector)
     try:

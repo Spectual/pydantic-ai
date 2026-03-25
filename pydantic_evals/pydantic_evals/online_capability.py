@@ -56,8 +56,13 @@ def _parse_traceparent(traceparent: str | None) -> SpanReference | None:
 class OnlineEvaluation(AbstractCapability[AgentDepsT]):
     """Capability that runs online evaluators on agent run results.
 
-    Dispatches evaluators asynchronously in the background after each run completes.
-    Non-blocking - the agent run returns immediately and evaluators run concurrently.
+    Dispatches evaluators asynchronously in the background after each ``agent.run()``
+    completes. Non-blocking - the agent run returns immediately and evaluators run
+    concurrently.
+
+    Note: only ``agent.run()`` is supported. Streaming via ``agent.run_stream()``
+    does not trigger evaluators since the final result is not available until the
+    stream completes.
 
     Example:
     ```python
