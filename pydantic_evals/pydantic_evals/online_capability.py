@@ -65,10 +65,10 @@ class OnlineEvaluation(AbstractCapability[AgentDepsT]):
     stream completes.
 
     Example:
-    ```python
+    ```python {test="skip" lint="skip"}
     from pydantic_ai import Agent
     from pydantic_evals.evaluators import Evaluator, EvaluatorContext
-    from pydantic_evals.online import OnlineEvalConfig, CallbackSink
+    from pydantic_evals.online import CallbackSink, OnlineEvalConfig
     from pydantic_evals.online_capability import OnlineEvaluation
 
     class IsHelpful(Evaluator):
